@@ -30,7 +30,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: yinzara
+          username: wlxxyw
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build x86_64
@@ -142,8 +142,8 @@ jobs:
           target: runtime
           push: true
           tags: |
-            yinzara/esphome-linux:latest
-            yinzara/esphome-linux:${{ steps.get_version.outputs.version }}
+            wlxxyw/esphome-linux:latest
+            wlxxyw/esphome-linux:${{ steps.get_version.outputs.version }}
           cache-from: type=gha,scope=runtime
           cache-to: type=gha,mode=max,scope=runtime
 

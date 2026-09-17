@@ -189,7 +189,7 @@ After each successful build, artifacts are uploaded:
 ### Dockerhub
 
 After each successful build the native Docker images are pushed to Dockerhub:
-- `yinzara/esphome-linux` (linux/arm64 and linux/amd64 architectures)
+- `wlxxyw/esphome-linux` (linux/arm64 and linux/amd64 architectures)
 
 ### SDK Caching
 

@@ -91,7 +91,7 @@ COPY --from=builder /workspace/libble/out/ /
 COPY --from=builder /workspace/build/esphome-linux /usr/local/bin/
 
 # Update library cache
-RUN ldconfig
+RUN ldconfig || true
 
 EXPOSE 6053
 
