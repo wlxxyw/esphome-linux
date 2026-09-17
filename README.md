@@ -52,11 +52,20 @@ sudo apt-get install curl wget build-essential meson ninja-build pkg-config
 # Build dependencies
 scripts/build-deps.sh
 
+# use dependencies
+export CPLUS_INCLUDE_PATH="$PWD/libble/out/usr/include:$PWD/bluez/out/include:$PWD/nimble/out/include"
+export LIBRARY_PATH="$PWD/libble/out/usr/lib:$PWD/bluez/out/lib:$PWD/nimble/out/lib"
+export LD_LIBRARY_PATH="$LIBRARY_PATH"
+export PKG_CONFIG_PATH="$PWD/bluez/out/lib/pkgconfig:$PWD/nimble/out/lib/pkgconfig"
+
 # Configure
 meson setup build
 
 # Build
 meson compile -C build
+
+# After authorization, it can be run without root privileges.
+sudo setcap 'cap_net_raw,cap_net_admin+eip' /usr/local/bin/esphome-linux
 
 # Install dependencies (optional)
 cp -r nimble/out/* /usr
