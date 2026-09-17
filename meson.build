@@ -24,6 +24,7 @@ core_sources = files(
   'src/esphome_proto.c',
   'src/esphome_plugin.c',
   'src/switch_proto.c',
+  'src/sensor_proto.c',
 )
 
 # Plugin sources (optional, can be empty)
