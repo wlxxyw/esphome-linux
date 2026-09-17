@@ -8,9 +8,16 @@
 #include "include/esphome_proto.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
+#include <pthread.h>
+#include <time.h>
+#include <errno.h>
 
 #define LOG_PREFIX "[plugin-manager] "
+
+/* Timeout for each plugin cleanup (seconds) */
+#define CLEANUP_TIMEOUT_SEC 5
 
 /* Global plugin list (linked list) */
 static esphome_plugin_t *plugins_head = NULL;
@@ -80,23 +87,60 @@ int esphome_plugin_init_all(esphome_api_server_t *server, const esphome_device_c
 
 /**
  * Cleanup all plugins
+ *
+ * Each plugin's cleanup is run in a separate thread with a timeout.
+ * If a plugin cleanup hangs, we cancel it and move on to the next plugin.
  */
 void esphome_plugin_cleanup_all(esphome_api_server_t *server, const esphome_device_config_t *config) {
     (void)server;
     (void)config;
 
     printf(LOG_PREFIX "Cleaning up plugins...\n");
+    fflush(stdout);
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         if (plugin->cleanup && plugin->ctx) {
-            printf(LOG_PREFIX "Cleaning up %s...\n", plugin->name);
-            plugin->cleanup(plugin->ctx);
+            printf(LOG_PREFIX "Cleaning up %s (timeout=%ds)...\n", plugin->name, CLEANUP_TIMEOUT_SEC);
+            fflush(stdout);
+
+            /* Run cleanup in a thread so we can enforce a timeout */
+            pthread_t cleanup_tid;
+            int ret = pthread_create(&cleanup_tid, NULL,
+                (void *(*)(void *))plugin->cleanup, plugin->ctx);
+
+            if (ret != 0) {
+                fprintf(stderr, LOG_PREFIX "Failed to create cleanup thread for %s: %s\n",
+                        plugin->name, strerror(ret));
+                continue;
+            }
+
+            /* Wait with timeout */
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += CLEANUP_TIMEOUT_SEC;
+
+            ret = pthread_timedjoin_np(cleanup_tid, NULL, &ts);
+            if (ret == ETIMEDOUT) {
+                fprintf(stderr, LOG_PREFIX "Timeout cleaning up %s, cancelling...\n", plugin->name);
+                fflush(stderr);
+                pthread_cancel(cleanup_tid);
+                pthread_join(cleanup_tid, NULL);
+            } else if (ret != 0) {
+                fprintf(stderr, LOG_PREFIX "Error joining cleanup thread for %s: %s\n",
+                        plugin->name, strerror(ret));
+            }
 
             /* Free the persistent context */
             free(plugin->ctx);
             plugin->ctx = NULL;
+
+            printf(LOG_PREFIX "Cleaned up %s\n", plugin->name);
+            fflush(stdout);
         }
     }
+
+    printf(LOG_PREFIX "Cleanup complete\n");
+    fflush(stdout);
 }
 
 /**
