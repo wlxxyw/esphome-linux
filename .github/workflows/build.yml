@@ -2,12 +2,8 @@ name: Build Multi-Architecture
 
 on:
   push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'feat/**'
-      - 'fix/**'
-      - 'dev/**'
+    tags:
+      - '*' # 推送标签时触发
   pull_request:
     branches: [ main ]
   workflow_dispatch:
