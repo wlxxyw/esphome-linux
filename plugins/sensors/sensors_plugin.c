@@ -717,11 +717,11 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
 
     register_sensor_entity(ctx, client_id, SENSOR_KEY_MEMORY_TOTAL,
                           "memory_total", "Total Memory", "mdi:memory",
-                          "MB", 0, NULL, SENSOR_STATE_CLASS_MEASUREMENT);
+                          "MB", 0, "data_size", SENSOR_STATE_CLASS_MEASUREMENT);
 
     register_sensor_entity(ctx, client_id, SENSOR_KEY_MEMORY_AVAILABLE,
                           "memory_available", "Available Memory", "mdi:memory",
-                          "MB", 0, NULL, SENSOR_STATE_CLASS_MEASUREMENT);
+                          "MB", 0, "data_size", SENSOR_STATE_CLASS_MEASUREMENT);
 
     /* Temperature sensors */
     scan_thermal_zones(state);
@@ -754,7 +754,7 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
                state->interfaces[i].key_rx, object_id, name);
         register_sensor_entity(ctx, client_id, state->interfaces[i].key_rx,
                               object_id, name, "mdi:network",
-                              "B", 0, NULL, SENSOR_STATE_CLASS_TOTAL_INCREASING);
+                              "B", 0, "data_size", SENSOR_STATE_CLASS_TOTAL_INCREASING);
 
         /* TX sensor */
         snprintf(object_id, sizeof(object_id), "%s_tx_bytes", state->interfaces[i].name);
@@ -763,7 +763,7 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
                state->interfaces[i].key_tx, object_id, name);
         register_sensor_entity(ctx, client_id, state->interfaces[i].key_tx,
                               object_id, name, "mdi:network",
-                              "B", 0, NULL, SENSOR_STATE_CLASS_TOTAL_INCREASING);
+                              "B", 0, "data_size", SENSOR_STATE_CLASS_TOTAL_INCREASING);
     }
 
     /* Disk usage */
