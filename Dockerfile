@@ -25,6 +25,9 @@ RUN pip3 install --no-cache-dir meson
 # Set working directory
 WORKDIR /workspace
 
+# Optional: set to "1" to disable Bluetooth proxy plugin
+ARG SENSOR_ONLY=0
+
 # Copy dependency build scripts and sources
 COPY nimble/ nimble/
 COPY bluez/ bluez/
@@ -47,6 +50,12 @@ RUN cd libble && \
 
 # Copy project files
 COPY . .
+
+# Disable Bluetooth proxy plugin if SENSOR_ONLY is set
+RUN if [ "$SENSOR_ONLY" = "1" ]; then \
+      sed -i '/^option.*enable_bluetooth_proxy/,/^)/ s/value: true/value: false/' meson_options.txt && \
+      echo "Bluetooth proxy DISABLED (sensor-only build)"; \
+    fi
 
 # Set TMPDIR to avoid macOS volume mount issues
 ENV TMPDIR=/tmp
