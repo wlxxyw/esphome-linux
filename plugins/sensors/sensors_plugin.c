@@ -40,6 +40,7 @@
 #define MAX_NETWORK_INTERFACES      32
 #define MAX_DISK_MOUNTS             32
 #define MAX_THERMAL_ZONES           16
+#define MAX_MOUNT_POINT_PATH        255
 
 /* Update intervals (in milliseconds) */
 #define CPU_MEMORY_UPDATE_INTERVAL_MS   10000   /* 10 seconds */
@@ -48,7 +49,7 @@
 
 /* Network interface exclusion patterns */
 static const char *exclude_prefixes[] = {
-    "vth", "lo", "docker", "zth", NULL
+    "vth", "veth", "lo", "docker", "zth", NULL
 };
 
 /* Network interface state */
@@ -370,55 +371,76 @@ static void read_network_stats(sensors_state_t *state) {
  * Check if mountpoint is in /etc/fstab and is a real filesystem
  */
 static bool is_fstab_mount(const char *mountpoint, const char *fstype) {
+    char mountpoint_copy[MAX_MOUNT_POINT_PATH];
+    char fstype_copy[64];
+
+    snprintf(mountpoint_copy,
+             sizeof(mountpoint_copy),
+             "%s",
+             mountpoint);
+
+    snprintf(fstype_copy,
+             sizeof(fstype_copy),
+             "%s",
+             fstype);
+
     /* Skip virtual filesystems */
-    if (strcmp(fstype, "proc") == 0 ||
-        strcmp(fstype, "sysfs") == 0 ||
-        strcmp(fstype, "devtmpfs") == 0 ||
-        strcmp(fstype, "tmpfs") == 0 ||
-        strcmp(fstype, "devpts") == 0 ||
-        strcmp(fstype, "cgroup") == 0 ||
-        strcmp(fstype, "cgroup2") == 0 ||
-        strcmp(fstype, "pstore") == 0 ||
-        strcmp(fstype, "securityfs") == 0 ||
-        strcmp(fstype, "debugfs") == 0 ||
-        strcmp(fstype, "tracefs") == 0 ||
-        strcmp(fstype, "hugetlbfs") == 0 ||
-        strcmp(fstype, "mqueue") == 0 ||
-        strcmp(fstype, "configfs") == 0 ||
-        strcmp(fstype, "binfmt_misc") == 0 ||
-        strcmp(fstype, "autofs") == 0 ||
-        strcmp(fstype, "rpc_pipefs") == 0 ||
-        strcmp(fstype, "nfsd") == 0 ||
-        strcmp(fstype, "efivarfs") == 0 ||
-        strncmp(fstype, "fuse.", 5) == 0 ||
-        strncmp(fstype, "overlay", 7) == 0) {
-        return false;
+    if (strcmp(fstype_copy, "proc") == 0 ||
+        strcmp(fstype_copy, "sysfs") == 0 ||
+        strcmp(fstype_copy, "devtmpfs") == 0 ||
+        strcmp(fstype_copy, "tmpfs") == 0 ||
+        strcmp(fstype_copy, "devpts") == 0 ||
+        strcmp(fstype_copy, "cgroup") == 0 ||
+        strcmp(fstype_copy, "cgroup2") == 0 ||
+        strcmp(fstype_copy, "pstore") == 0 ||
+        strcmp(fstype_copy, "securityfs") == 0 ||
+        strcmp(fstype_copy, "debugfs") == 0 ||
+        strcmp(fstype_copy, "tracefs") == 0 ||
+        strcmp(fstype_copy, "hugetlbfs") == 0 ||
+        strcmp(fstype_copy, "mqueue") == 0 ||
+        strcmp(fstype_copy, "configfs") == 0 ||
+        strcmp(fstype_copy, "binfmt_misc") == 0 ||
+        strcmp(fstype_copy, "autofs") == 0 ||
+        strcmp(fstype_copy, "rpc_pipefs") == 0 ||
+        strcmp(fstype_copy, "nfsd") == 0 ||
+        strcmp(fstype_copy, "efivarfs") == 0 ||
+        strncmp(fstype_copy, "fuse.", 5) == 0 ||
+        strncmp(fstype_copy, "overlay", 7) == 0) {
+            printf("[sensors] skip virtual filesystems mount point %s\n", mountpoint_copy);
+            return false;
     }
 
     /* Skip swap and cache filesystems */
-    if (strcmp(fstype, "swap") == 0 ||
-        strcmp(fstype, "squashfs") == 0 ||
-        strcmp(fstype, "iso9660") == 0 ||
-        strcmp(fstype, "udf") == 0 ||
-        strcmp(fstype, "vfat") == 0 ||
-        strcmp(fstype, "exfat") == 0 ||
-        strcmp(fstype, "ntfs") == 0 ||
-        strcmp(fstype, "fuseblk") == 0 ||
-        strcmp(fstype, "fuse.snapfuse") == 0) {
-        return false;
+    if (strcmp(fstype_copy, "swap") == 0 ||
+        strcmp(fstype_copy, "squashfs") == 0 ||
+        strcmp(fstype_copy, "iso9660") == 0 ||
+        strcmp(fstype_copy, "udf") == 0 ||
+        strcmp(fstype_copy, "vfat") == 0 ||
+        strcmp(fstype_copy, "exfat") == 0 ||
+        strcmp(fstype_copy, "ntfs") == 0 ||
+        strcmp(fstype_copy, "fuseblk") == 0 ||
+        strcmp(fstype_copy, "fuse.snapfuse") == 0) {
+            printf("[sensors] skip cache filesystems mount point %s\n", mountpoint_copy);
+            return false;
     }
 
     /* Check if it's in fstab */
     FILE *fstab = setmntent("/etc/fstab", "r");
-    if (!fstab) return false;
+    if (!fstab) {
+        printf("[sensors] OPEN /etc/fstab FAILED!!!");
+        return false;
+    }
 
     struct mntent *mnt;
     bool found = false;
 
     while ((mnt = getmntent(fstab)) != NULL) {
-        if (strcmp(mnt->mnt_dir, mountpoint) == 0) {
-            found = true;
-            break;
+        if (strcmp(mnt->mnt_dir, mountpoint_copy) == 0) {
+            if (strcmp(mnt->mnt_type, fstype_copy) == 0) {
+                printf("[sensors] find mountpoint %s(%s)\n", mountpoint_copy, fstype_copy);
+                found = true;
+                break;
+            }
         }
     }
 
