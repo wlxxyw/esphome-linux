@@ -133,6 +133,58 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
+      - name: Build sensor-only x86_64
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          target: builder
+          build-args: |
+            SENSOR_ONLY=1
+          outputs: type=local,dest=./output-sensor-amd64-build
+          cache-from: type=gha,scope=sensor-amd64
+          cache-to: type=gha,mode=max,scope=sensor-amd64
+
+      - name: Extract sensor-only x86_64 binary
+        run: |
+          mkdir -p ./output-sensor-amd64/usr/local/bin
+          cp ./output-sensor-amd64-build/workspace/build/esphome-linux ./output-sensor-amd64/usr/local/bin/esphome-linux
+          rm -rf ./output-sensor-amd64-build
+
+      - name: Build sensor-only ARM64
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          target: builder
+          build-args: |
+            SENSOR_ONLY=1
+          outputs: type=local,dest=./output-sensor-arm64-build
+          cache-from: type=gha,scope=sensor-arm64
+          cache-to: type=gha,mode=max,scope=sensor-arm64
+
+      - name: Extract sensor-only ARM64 binary
+        run: |
+          mkdir -p ./output-sensor-arm64/usr/local/bin
+          cp ./output-sensor-arm64-build/workspace/build/esphome-linux ./output-sensor-arm64/usr/local/bin/esphome-linux
+          rm -rf ./output-sensor-arm64-build
+
+      - name: Upload sensor-only x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esphome-linux-sensor-x86_64
+          path: ./output-sensor-amd64/usr/local/bin/esphome-linux
+          if-no-files-found: error
+
+      - name: Upload sensor-only ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esphome-linux-sensor-arm64
+          path: ./output-sensor-arm64/usr/local/bin/esphome-linux
+          if-no-files-found: error
+
       - name: Build and push runtime Docker image
         uses: docker/build-push-action@v5
         with:
@@ -275,6 +327,8 @@ jobs:
           cp artifacts/esphome-linux-x86_64/esphome-linux release/esphome-linux-x86_64
           cp artifacts/esphome-linux-arm64/esphome-linux release/esphome-linux-arm64
           cp artifacts/esphome-linux-mips/esphome-linux-mips release/esphome-linux-mips
+          cp artifacts/esphome-linux-sensor-x86_64/esphome-linux release/esphome-linux-sensor-x86_64
+          cp artifacts/esphome-linux-sensor-arm64/esphome-linux release/esphome-linux-sensor-arm64
           cp artifacts/deps-x86_64/deps-x86_64.tar.gz release/deps-x86_64.tar.gz
           cp artifacts/deps-arm64/deps-arm64.tar.gz release/deps-arm64.tar.gz
           cp artifacts/deps-mips/deps-mips.tar.gz release/deps-mips.tar.gz
@@ -293,6 +347,8 @@ jobs:
             release/esphome-linux-x86_64
             release/esphome-linux-arm64
             release/esphome-linux-mips
+            release/esphome-linux-sensor-x86_64
+            release/esphome-linux-sensor-arm64
             release/deps-x86_64.tar.gz
             release/deps-arm64.tar.gz
             release/deps-mips.tar.gz
@@ -310,6 +366,13 @@ jobs:
             | x86_64 | [esphome-linux-x86_64](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/esphome-linux-x86_64) | [deps-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/deps-x86_64.tar.gz) | Linux AMD64 (Intel/AMD 64-bit) |
             | ARM64 | [esphome-linux-arm64](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/esphome-linux-arm64) | [deps-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/deps-arm64.tar.gz) | Linux ARM64 (aarch64) |
             | MIPS | [esphome-linux-mips](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/esphome-linux-mips) | [deps-mips.tar.gz](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/deps-mips.tar.gz) | Ingenic T31 (MIPS32r2 LE) |
+
+            ### Sensor-Only Binaries (no dependencies required)
+
+            | Architecture | Binary | Platform |
+            |--------------|--------|----------|
+            | x86_64 | [esphome-linux-sensor-x86_64](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/esphome-linux-sensor-x86_64) | Linux AMD64 |
+            | ARM64 | [esphome-linux-sensor-arm64](https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/esphome-linux-sensor-arm64) | Linux ARM64 |
 
             ### Installation
 
