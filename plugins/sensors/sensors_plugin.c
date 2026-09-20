@@ -299,7 +299,8 @@ static void read_network_stats(sensors_state_t *state) {
     fgets(line, sizeof(line), f);
     fgets(line, sizeof(line), f);
 
-    int idx = 0;
+    /* Start writing new entries after existing ones to avoid overwriting */
+    int idx = state->interface_count;
     while (fgets(line, sizeof(line), f) && idx < MAX_NETWORK_INTERFACES) {
         char raw_name[64];
         char name[64];
@@ -348,12 +349,11 @@ static void read_network_stats(sensors_state_t *state) {
         }
 
         if (found >= 0) {
-            /* Update existing interface */
+            /* Update existing interface in place */
             state->interfaces[found].rx_bytes = rx_bytes;
             state->interfaces[found].tx_bytes = tx_bytes;
-            idx++;
         } else if (idx < MAX_NETWORK_INTERFACES) {
-            /* Add new interface */
+            /* Add new interface after existing ones */
             strncpy(state->interfaces[idx].name, name, sizeof(state->interfaces[idx].name) - 1);
             state->interfaces[idx].rx_bytes = rx_bytes;
             state->interfaces[idx].tx_bytes = tx_bytes;
@@ -456,7 +456,9 @@ static void read_disk_mounts(sensors_state_t *state) {
     if (!f) return;
 
     struct mntent *mnt;
-    int idx = 0;
+
+    /* Start writing new entries after existing ones to avoid overwriting */
+    int idx = state->disk_count;
 
     while ((mnt = getmntent(f)) != NULL && idx < MAX_DISK_MOUNTS) {
         /* Skip non-physical devices */
@@ -591,7 +593,8 @@ static void *update_thread_func(void *arg) {
     struct timespec last_cpu_mem = {0, 0};
     struct timespec last_network = {0, 0};
     struct timespec last_disk = {0, 0};
-
+    bool first_run = true;
+    
     /* Initialize timestamps */
     clock_gettime(CLOCK_MONOTONIC, &last_cpu_mem);
     last_network = last_cpu_mem;
@@ -607,7 +610,7 @@ static void *update_thread_func(void *arg) {
         /* CPU and memory update (10 seconds) */
         uint64_t elapsed_cpu = (now.tv_sec - last_cpu_mem.tv_sec) * 1000 +
                                (now.tv_nsec - last_cpu_mem.tv_nsec) / 1000000;
-        if (elapsed_cpu >= CPU_MEMORY_UPDATE_INTERVAL_MS) {
+        if (first_run || elapsed_cpu >= CPU_MEMORY_UPDATE_INTERVAL_MS) {
             float cpu_usage = read_cpu_usage(state);
             send_sensor_state(state->ctx, SENSOR_KEY_CPU_USAGE, cpu_usage);
 
@@ -636,7 +639,7 @@ static void *update_thread_func(void *arg) {
         /* Network update (1 minute) */
         uint64_t elapsed_net = (now.tv_sec - last_network.tv_sec) * 1000 +
                                (now.tv_nsec - last_network.tv_nsec) / 1000000;
-        if (elapsed_net >= NETWORK_UPDATE_INTERVAL_MS) {
+        if (first_run || elapsed_net >= NETWORK_UPDATE_INTERVAL_MS) {
             read_network_stats(state);
             for (int i = 0; i < state->interface_count; i++) {
                 send_sensor_state(state->ctx, state->interfaces[i].key_rx,
@@ -650,7 +653,7 @@ static void *update_thread_func(void *arg) {
         /* Disk update (5 minutes) */
         uint64_t elapsed_disk = (now.tv_sec - last_disk.tv_sec) * 1000 +
                                 (now.tv_nsec - last_disk.tv_nsec) / 1000000;
-        if (elapsed_disk >= DISK_UPDATE_INTERVAL_MS) {
+        if (first_run || elapsed_disk >= DISK_UPDATE_INTERVAL_MS) {
             read_disk_mounts(state);
             for (int i = 0; i < state->disk_count; i++) {
                 float disk_usage = read_disk_usage(state->disks[i].mountpoint);
@@ -658,6 +661,8 @@ static void *update_thread_func(void *arg) {
             }
             last_disk = now;
         }
+
+        first_run = false;
 
         /* Sleep in small increments, checking shutdown pipe each time */
         {
