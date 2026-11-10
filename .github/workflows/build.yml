@@ -140,18 +140,12 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
-          target: builder
+          target: dist
           build-args: |
             SENSOR_ONLY=1
-          outputs: type=local,dest=./output-sensor-amd64-build
+          outputs: type=local,dest=./output-sensor-amd64
           cache-from: type=gha,scope=sensor-amd64
           cache-to: type=gha,mode=max,scope=sensor-amd64
-
-      - name: Extract sensor-only x86_64 binary
-        run: |
-          mkdir -p ./output-sensor-amd64/usr/local/bin
-          cp ./output-sensor-amd64-build/workspace/build/esphome-linux ./output-sensor-amd64/usr/local/bin/esphome-linux
-          rm -rf ./output-sensor-amd64-build
 
       - name: Build sensor-only ARM64
         uses: docker/build-push-action@v5
@@ -159,31 +153,25 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
-          target: builder
+          target: dist
           build-args: |
             SENSOR_ONLY=1
-          outputs: type=local,dest=./output-sensor-arm64-build
+          outputs: type=local,dest=./output-sensor-arm64
           cache-from: type=gha,scope=sensor-arm64
           cache-to: type=gha,mode=max,scope=sensor-arm64
-
-      - name: Extract sensor-only ARM64 binary
-        run: |
-          mkdir -p ./output-sensor-arm64/usr/local/bin
-          cp ./output-sensor-arm64-build/workspace/build/esphome-linux ./output-sensor-arm64/usr/local/bin/esphome-linux
-          rm -rf ./output-sensor-arm64-build
 
       - name: Upload sensor-only x86_64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: esphome-linux-sensor-x86_64
-          path: ./output-sensor-amd64/usr/local/bin/esphome-linux
+          path: ./output-sensor-amd64/esphome-linux
           if-no-files-found: error
 
       - name: Upload sensor-only ARM64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: esphome-linux-sensor-arm64
-          path: ./output-sensor-arm64/usr/local/bin/esphome-linux
+          path: ./output-sensor-arm64/esphome-linux
           if-no-files-found: error
 
       - name: Build and push runtime Docker image

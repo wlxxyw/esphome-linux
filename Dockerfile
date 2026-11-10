@@ -88,6 +88,10 @@ RUN mkdir -p /deps-archive/lib /deps-archive/include /deps-archive/licenses && \
 FROM scratch AS deps
 COPY --from=builder /workspace/deps.tar.gz /deps.tar.gz
 
+# Binary-only export stage (fast local output for CI artifacts)
+FROM scratch AS dist
+COPY --from=builder /workspace/build/esphome-linux /esphome-linux
+
 # Runtime stage (optional, for smaller image)
 FROM ubuntu:22.04 AS runtime
 
