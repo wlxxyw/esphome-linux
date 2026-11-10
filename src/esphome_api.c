@@ -6,6 +6,7 @@
 #include "include/esphome_api.h"
 #include "include/esphome_proto.h"
 #include "include/esphome_plugin_internal.h"
+#include "esphome_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -121,7 +122,7 @@ static int send_message(client_connection_t *client, uint16_t msg_type,
     size_t frame_len = esphome_frame_message(send_buf, sizeof(send_buf),
                                               msg_type, payload, payload_len);
     if (frame_len == 0) {
-        fprintf(stderr, LOG_PREFIX "Failed to frame message type %u (%s)\n",
+        LOGE(LOG_PREFIX "Failed to frame message type %u (%s)\n",
                 msg_type, message_type_name(msg_type));
         return -1;
     }
@@ -131,16 +132,16 @@ static int send_message(client_connection_t *client, uint16_t msg_type,
     pthread_mutex_unlock(&client->send_mutex);
 
     if (sent < 0) {
-        fprintf(stderr, LOG_PREFIX "Send failed: %s\n", strerror(errno));
+        LOGE(LOG_PREFIX "Send failed: %s\n", strerror(errno));
         return -1;
     }
 
     if ((size_t)sent != frame_len) {
-        fprintf(stderr, LOG_PREFIX "Partial send: %zd/%zu\n", sent, frame_len);
+        LOGE(LOG_PREFIX "Partial send: %zd/%zu\n", sent, frame_len);
         return -1;
     }
 
-    printf(LOG_PREFIX ">>> Sent %s (type=%u, payload=%zu bytes, total=%zu bytes)\n",
+    LOGD(LOG_PREFIX ">>> Sent %s (type=%u, payload=%zu bytes, total=%zu bytes)\n",
            message_type_name(msg_type), msg_type, payload_len, frame_len);
 
     return 0;
@@ -155,11 +156,11 @@ static void handle_hello_request(esphome_api_server_t *server,
                                   const uint8_t *payload, size_t payload_len) {
     /* Log the client's HELLO payload */
     if (payload_len > 0) {
-        printf(LOG_PREFIX "Client HELLO payload (%zu bytes): ", payload_len);
+        LOGD(LOG_PREFIX "Client HELLO payload (%zu bytes): ", payload_len);
         for (size_t i = 0; i < payload_len && i < 32; i++) {
-            printf("%02x ", payload[i]);
+            LOGD("%02x ", payload[i]);
         }
-        printf("\n");
+        LOGD("\n");
     }
 
     esphome_hello_response_t response;
@@ -197,7 +198,7 @@ static void handle_connect_request(esphome_api_server_t *server,
 
     if (len > 0) {
         send_message(client, ESPHOME_MSG_CONNECT_RESPONSE, encode_buf, len);
-        printf(LOG_PREFIX "Client authenticated\n");
+        LOGI(LOG_PREFIX "Client authenticated\n");
     }
 }
 
@@ -250,25 +251,25 @@ static void handle_device_info_request(esphome_api_server_t *server,
         send_message(client, ESPHOME_MSG_DEVICE_INFO_RESPONSE, encode_buf, len);
 
         /* Log hex dump of encoded response for debugging */
-        printf(LOG_PREFIX "DeviceInfo payload hex (%zu bytes):\n", len);
+        LOGD(LOG_PREFIX "DeviceInfo payload hex (%zu bytes):\n", len);
         for (size_t i = 0; i < len; i++) {
             if (i % 16 == 0) {
-                printf(LOG_PREFIX "%04zx: ", i);
+                LOGD(LOG_PREFIX "%04zx: ", i);
             }
-            printf("%02x ", encode_buf[i]);
+            LOGD("%02x ", encode_buf[i]);
             if ((i + 1) % 16 == 0 || i == len - 1) {
-                printf("\n");
+                LOGD("\n");
             }
         }
-        printf(LOG_PREFIX "Looking for field 15 tag (0x78) and field 18 tag (0x92)...\n");
+        LOGD(LOG_PREFIX "Looking for field 15 tag (0x78) and field 18 tag (0x92)...\n");
         for (size_t i = 0; i < len - 1; i++) {
             if (encode_buf[i] == 0x78) {
-                printf(LOG_PREFIX "Found field 15 (bluetooth_proxy_feature_flags) at offset %zu, value = 0x%02x\n",
+                LOGD(LOG_PREFIX "Found field 15 (bluetooth_proxy_feature_flags) at offset %zu, value = 0x%02x\n",
                        i, encode_buf[i+1]);
             }
             if (encode_buf[i] == 0x92) {
                 /* Field 18 tag: (18 << 3) | 2 = 146 = 0x92 */
-                printf(LOG_PREFIX "Found field 18 (bluetooth_mac_address) at offset %zu\n", i);
+                LOGD(LOG_PREFIX "Found field 18 (bluetooth_mac_address) at offset %zu\n", i);
             }
         }
     }
@@ -361,7 +362,7 @@ static void dispatch_message(esphome_api_server_t *server,
                               int client_id,
                               uint16_t msg_type,
                               const uint8_t *payload, size_t payload_len) {
-    printf(LOG_PREFIX "<<< Received %s (type=%u, payload=%zu bytes)\n",
+    LOGD(LOG_PREFIX "<<< Received %s (type=%u, payload=%zu bytes)\n",
            message_type_name(msg_type), msg_type, payload_len);
 
     switch (msg_type) {
@@ -390,12 +391,12 @@ static void dispatch_message(esphome_api_server_t *server,
             handle_ping_request(server, client, payload, payload_len);
             break;
         case ESPHOME_MSG_DISCONNECT_REQUEST:
-            printf(LOG_PREFIX "Client requested disconnect\n");
+            LOGI(LOG_PREFIX "Client requested disconnect\n");
             break;
         default:
             /* Try delegating to plugins */
             if (esphome_plugin_handle_message(server, &server->config, client_id, msg_type, payload, payload_len) < 0) {
-                printf(LOG_PREFIX "!!! Unhandled message type: %u (%s)\n",
+                LOGE(LOG_PREFIX "!!! Unhandled message type: %u (%s)\n",
                        msg_type, message_type_name(msg_type));
             }
             break;
@@ -413,25 +414,25 @@ static void handle_client_data(esphome_api_server_t *server,
         uint32_t msg_len;
         uint16_t msg_type;
 
-        printf(LOG_PREFIX "Parsing frame from buffer (%zu bytes available)\n", client->recv_pos);
+        LOGD(LOG_PREFIX "Parsing frame from buffer (%zu bytes available)\n", client->recv_pos);
 
         /* Hex dump first 32 bytes for debugging */
-        printf(LOG_PREFIX "Buffer hex dump: ");
+        LOGD(LOG_PREFIX "Buffer hex dump: ");
         size_t dump_len = client->recv_pos < 32 ? client->recv_pos : 32;
         for (size_t i = 0; i < dump_len; i++) {
-            printf("%02x ", client->recv_buffer[i]);
+            LOGD("%02x ", client->recv_buffer[i]);
         }
-        printf("\n");
+        LOGD("\n");
 
         size_t header_len = esphome_decode_frame_header(client->recv_buffer,
                                                          client->recv_pos,
                                                          &msg_len, &msg_type);
         if (header_len == 0) {
-            printf(LOG_PREFIX "Need more data for header (have %zu bytes)\n", client->recv_pos);
+            LOGD(LOG_PREFIX "Need more data for header (have %zu bytes)\n", client->recv_pos);
             break;
         }
 
-        printf(LOG_PREFIX "Decoded header: header_len=%zu, msg_len=%u, msg_type=%u (%s)\n",
+        LOGD(LOG_PREFIX "Decoded header: header_len=%zu, msg_len=%u, msg_type=%u (%s)\n",
                header_len, msg_len, msg_type, message_type_name(msg_type));
 
         /*
@@ -442,11 +443,11 @@ static void handle_client_data(esphome_api_server_t *server,
          */
 
         uint32_t total_len = header_len + msg_len;
-        printf(LOG_PREFIX "Total message length: %u (header=%zu + payload=%u)\n",
+        LOGD(LOG_PREFIX "Total message length: %u (header=%zu + payload=%u)\n",
                total_len, header_len, msg_len);
 
         if (client->recv_pos < total_len) {
-            printf(LOG_PREFIX "Need more data for message (have %zu, need %u)\n",
+            LOGD(LOG_PREFIX "Need more data for message (have %zu, need %u)\n",
                    client->recv_pos, total_len);
             break;
         }
@@ -461,7 +462,7 @@ static void handle_client_data(esphome_api_server_t *server,
         memmove(client->recv_buffer, client->recv_buffer + total_len,
                 client->recv_pos - total_len);
         client->recv_pos -= total_len;
-        printf(LOG_PREFIX "Message processed, %zu bytes remaining in buffer\n", client->recv_pos);
+        LOGD(LOG_PREFIX "Message processed, %zu bytes remaining in buffer\n", client->recv_pos);
     }
 }
 
@@ -496,13 +497,13 @@ static void *client_thread_func(void *arg) {
 
         if (received <= 0) {
             if (received < 0) {
-                fprintf(stderr, LOG_PREFIX "Recv failed: %s\n", strerror(errno));
+                LOGE(LOG_PREFIX "Recv failed: %s\n", strerror(errno));
             }
-            printf(LOG_PREFIX "Client disconnected\n");
+            LOGI(LOG_PREFIX "Client disconnected\n");
             break;
         }
 
-        printf(LOG_PREFIX "Received %zd bytes from client (buffer now has %zu bytes)\n",
+        LOGD(LOG_PREFIX "Received %zd bytes from client (buffer now has %zu bytes)\n",
                received, client->recv_pos + received);
 
         client->recv_pos += received;
@@ -531,7 +532,7 @@ static void *listen_thread_func(void *arg) {
 
         if (client_fd < 0) {
             if (server->running) {
-                fprintf(stderr, LOG_PREFIX "Accept failed: %s\n", strerror(errno));
+                LOGE(LOG_PREFIX "Accept failed: %s\n", strerror(errno));
             }
             continue;
         }
@@ -540,7 +541,7 @@ static void *listen_thread_func(void *arg) {
         int flag = 1;
         setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
-        printf(LOG_PREFIX "Client connected from %s:%d\n",
+        LOGI(LOG_PREFIX "Client connected from %s:%d\n",
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
@@ -557,7 +558,7 @@ static void *listen_thread_func(void *arg) {
         pthread_mutex_unlock(&server->clients_mutex);
 
         if (slot < 0) {
-            fprintf(stderr, LOG_PREFIX "Max clients reached, rejecting connection\n");
+            LOGE(LOG_PREFIX "Max clients reached, rejecting connection\n");
             close(client_fd);
             continue;
         }
@@ -569,7 +570,7 @@ static void *listen_thread_func(void *arg) {
         client->addr = client_addr;  /* Store client address */
 
         if (pthread_create(&client->thread, NULL, client_thread_func, client) != 0) {
-            fprintf(stderr, LOG_PREFIX "Failed to create client thread\n");
+            LOGE(LOG_PREFIX "Failed to create client thread\n");
             pthread_mutex_lock(&server->clients_mutex);
             client_close(client);
             pthread_mutex_unlock(&server->clients_mutex);
@@ -606,7 +607,7 @@ int esphome_api_start(esphome_api_server_t *server) {
     /* Create TCP socket */
     server->listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->listen_fd < 0) {
-        fprintf(stderr, LOG_PREFIX "Failed to create socket: %s\n", strerror(errno));
+        LOGE(LOG_PREFIX "Failed to create socket: %s\n", strerror(errno));
         return -1;
     }
 
@@ -622,7 +623,7 @@ int esphome_api_start(esphome_api_server_t *server) {
     addr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(server->listen_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        fprintf(stderr, LOG_PREFIX "Failed to bind: %s\n", strerror(errno));
+        LOGE(LOG_PREFIX "Failed to bind: %s\n", strerror(errno));
         close(server->listen_fd);
         server->listen_fd = -1;
         return -1;
@@ -630,13 +631,13 @@ int esphome_api_start(esphome_api_server_t *server) {
 
     /* Listen */
     if (listen(server->listen_fd, 2) < 0) {
-        fprintf(stderr, LOG_PREFIX "Failed to listen: %s\n", strerror(errno));
+        LOGE(LOG_PREFIX "Failed to listen: %s\n", strerror(errno));
         close(server->listen_fd);
         server->listen_fd = -1;
         return -1;
     }
 
-    printf(LOG_PREFIX "Listening on port %d\n", ESPHOME_API_PORT);
+    LOGI(LOG_PREFIX "Listening on port %d\n", ESPHOME_API_PORT);
 
     /* Start listen thread */
     server->running = true;

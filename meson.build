@@ -20,6 +20,7 @@ inc = include_directories('src/include')
 # Core source files
 core_sources = files(
   'src/main.c',
+  'src/esphome_log.c',
   'src/esphome_api.c',
   'src/esphome_proto.c',
   'src/esphome_plugin.c',

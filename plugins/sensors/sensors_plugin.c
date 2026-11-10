@@ -23,6 +23,7 @@
 #include "../../src/include/esphome_api.h"
 #include "../../src/include/esphome_proto.h"
 #include "../../src/include/sensor_proto.h"
+#include "../../src/include/esphome_log.h"
 
 /* Sensor key ranges */
 #define SENSOR_KEY_CPU_USAGE         1000
@@ -272,7 +273,7 @@ static void scan_thermal_zones(sensors_state_t *state) {
         char type[128];
         read_thermal_zone_type(zone_name, type, sizeof(type));
 
-        printf("[sensors] Found thermal zone: %s (type=%s)\n", zone_name, type);
+        LOGI("[sensors] Found thermal zone: %s (type=%s)\n", zone_name, type);
 
         strncpy(state->thermal_zones[count].name, zone_name,
                 sizeof(state->thermal_zones[count].name) - 1);
@@ -283,7 +284,7 @@ static void scan_thermal_zones(sensors_state_t *state) {
     }
 
     state->thermal_zone_count = count;
-    printf("[sensors] Found %d thermal zone(s)\n", count);
+    LOGI("[sensors] Found %d thermal zone(s)\n", count);
 }
 
 /**
@@ -331,11 +332,11 @@ static void read_network_stats(sensors_state_t *state) {
             name[--len] = '\0';
         }
 
-        printf("[sensors] parsed='%s' rx=%llu tx=%llu\n", name, rx_bytes, tx_bytes);
+        LOGD("[sensors] parsed='%s' rx=%llu tx=%llu\n", name, rx_bytes, tx_bytes);
 
         /* Skip excluded interfaces */
         if (should_exclude_interface(name)) {
-            printf("[sensors] excluding: %s\n", name);
+            LOGD("[sensors] excluding: %s\n", name);
             continue;
         }
 
@@ -406,7 +407,7 @@ static bool is_fstab_mount(const char *mountpoint, const char *fstype) {
         strcmp(fstype_copy, "efivarfs") == 0 ||
         strncmp(fstype_copy, "fuse.", 5) == 0 ||
         strncmp(fstype_copy, "overlay", 7) == 0) {
-            printf("[sensors] skip virtual filesystems mount point %s\n", mountpoint_copy);
+            LOGD("[sensors] skip virtual filesystems mount point %s\n", mountpoint_copy);
             return false;
     }
 
@@ -420,14 +421,14 @@ static bool is_fstab_mount(const char *mountpoint, const char *fstype) {
         strcmp(fstype_copy, "ntfs") == 0 ||
         strcmp(fstype_copy, "fuseblk") == 0 ||
         strcmp(fstype_copy, "fuse.snapfuse") == 0) {
-            printf("[sensors] skip cache filesystems mount point %s\n", mountpoint_copy);
+            LOGD("[sensors] skip cache filesystems mount point %s\n", mountpoint_copy);
             return false;
     }
 
     /* Check if it's in fstab */
     FILE *fstab = setmntent("/etc/fstab", "r");
     if (!fstab) {
-        printf("[sensors] OPEN /etc/fstab FAILED!!!");
+        LOGW("[sensors] OPEN /etc/fstab FAILED!!!");
         return false;
     }
 
@@ -437,7 +438,7 @@ static bool is_fstab_mount(const char *mountpoint, const char *fstype) {
     while ((mnt = getmntent(fstab)) != NULL) {
         if (strcmp(mnt->mnt_dir, mountpoint_copy) == 0) {
             if (strcmp(mnt->mnt_type, fstype_copy) == 0) {
-                printf("[sensors] find mountpoint %s(%s)\n", mountpoint_copy, fstype_copy);
+                LOGD("[sensors] find mountpoint %s(%s)\n", mountpoint_copy, fstype_copy);
                 found = true;
                 break;
             }
@@ -563,9 +564,9 @@ static void update_sensors(sensors_state_t *state) {
 
     /* Network interfaces */
     read_network_stats(state);
-    printf("[sensors] network interfaces count: %d\n", state->interface_count);
+    LOGI("[sensors] network interfaces count: %d\n", state->interface_count);
     for (int i = 0; i < state->interface_count; i++) {
-        printf("[sensors] sending %s: rx=%llu tx=%llu key_rx=%u key_tx=%u\n",
+        LOGD("[sensors] sending %s: rx=%llu tx=%llu key_rx=%u key_tx=%u\n",
                state->interfaces[i].name,
                state->interfaces[i].rx_bytes,
                state->interfaces[i].tx_bytes,
@@ -761,7 +762,7 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
         snprintf(name, sizeof(name), "%s (%s)", state->thermal_zones[i].name,
                  state->thermal_zones[i].type);
 
-        printf("[sensors] registering temp: key=%u object_id='%s' name='%s'\n",
+        LOGI("[sensors] registering temp: key=%u object_id='%s' name='%s'\n",
                state->thermal_zones[i].key, object_id, name);
         register_sensor_entity(ctx, client_id, state->thermal_zones[i].key,
                               object_id, name, "mdi:thermometer",
@@ -770,14 +771,14 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
 
     /* Network interfaces */
     read_network_stats(state);
-    printf("[sensors] list_entities: registering %d network interfaces\n", state->interface_count);
+    LOGI("[sensors] list_entities: registering %d network interfaces\n", state->interface_count);
     for (int i = 0; i < state->interface_count; i++) {
         char object_id[128], name[128];
 
         /* RX sensor */
         snprintf(object_id, sizeof(object_id), "%s_rx_bytes", state->interfaces[i].name);
         snprintf(name, sizeof(name), "%s RX", state->interfaces[i].name);
-        printf("[sensors] registering RX: key=%u object_id='%s' name='%s'\n",
+        LOGI("[sensors] registering RX: key=%u object_id='%s' name='%s'\n",
                state->interfaces[i].key_rx, object_id, name);
         register_sensor_entity(ctx, client_id, state->interfaces[i].key_rx,
                               object_id, name, "mdi:network",
@@ -786,7 +787,7 @@ static int sensors_list_entities(esphome_plugin_context_t *ctx, int client_id) {
         /* TX sensor */
         snprintf(object_id, sizeof(object_id), "%s_tx_bytes", state->interfaces[i].name);
         snprintf(name, sizeof(name), "%s TX", state->interfaces[i].name);
-        printf("[sensors] registering TX: key=%u object_id='%s' name='%s'\n",
+        LOGI("[sensors] registering TX: key=%u object_id='%s' name='%s'\n",
                state->interfaces[i].key_tx, object_id, name);
         register_sensor_entity(ctx, client_id, state->interfaces[i].key_tx,
                               object_id, name, "mdi:network",
@@ -848,12 +849,12 @@ static int sensors_subscribe_states(esphome_plugin_context_t *ctx, int client_id
  * Initialize the Sensors plugin
  */
 static int sensors_init(esphome_plugin_context_t *ctx) {
-    printf("[sensors] Initializing plugin\n");
+    LOGI("[sensors] Initializing plugin\n");
 
     /* Allocate plugin state */
     sensors_state_t *state = calloc(1, sizeof(sensors_state_t));
     if (!state) {
-        fprintf(stderr, "[sensors] Failed to allocate state\n");
+        LOGE("[sensors] Failed to allocate state\n");
         return -1;
     }
 
@@ -864,7 +865,7 @@ static int sensors_init(esphome_plugin_context_t *ctx) {
 
     /* Create shutdown pipe */
     if (pipe(state->shutdown_pipe) != 0) {
-        fprintf(stderr, "[sensors] Failed to create shutdown pipe\n");
+        LOGE("[sensors] Failed to create shutdown pipe\n");
         free(state);
         return -1;
     }
@@ -875,13 +876,13 @@ static int sensors_init(esphome_plugin_context_t *ctx) {
     /* Start update thread */
     state->update_thread_running = true;
     if (pthread_create(&state->update_thread, NULL, update_thread_func, state) != 0) {
-        fprintf(stderr, "[sensors] Failed to create update thread\n");
+        LOGE("[sensors] Failed to create update thread\n");
         free(state);
         return -1;
     }
 
-    printf("[sensors] Plugin initialized successfully\n");
-    printf("[sensors] Device: %s\n", ctx->config->device_name);
+    LOGI("[sensors] Plugin initialized successfully\n");
+    LOGI("[sensors] Device: %s\n", ctx->config->device_name);
 
     return 0;
 }
@@ -890,12 +891,12 @@ static int sensors_init(esphome_plugin_context_t *ctx) {
  * Cleanup the Sensors plugin
  */
 static void sensors_cleanup(esphome_plugin_context_t *ctx) {
-    printf("[sensors] Cleaning up plugin\n");
+    LOGI("[sensors] Cleaning up plugin\n");
     fflush(stdout);
 
     if (ctx->plugin_data) {
         sensors_state_t *state = (sensors_state_t *)ctx->plugin_data;
-        printf("[sensors] state=%p update_thread_running=%d\n", (void*)state, state->update_thread_running);
+        LOGI("[sensors] state=%p update_thread_running=%d\n", (void*)state, state->update_thread_running);
         fflush(stdout);
 
         /* Signal thread to stop */
@@ -918,7 +919,7 @@ static void sensors_cleanup(esphome_plugin_context_t *ctx) {
         ctx->plugin_data = NULL;
     }
 
-    printf("[sensors] Cleanup complete\n");
+    LOGI("[sensors] Cleanup complete\n");
     fflush(stdout);
 }
 

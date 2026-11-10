@@ -6,6 +6,7 @@
 #include "include/esphome_plugin.h"
 #include "include/esphome_api.h"
 #include "include/esphome_proto.h"
+#include "esphome_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,7 @@ void esphome_plugin_register(esphome_plugin_t *plugin) {
     plugin->next = plugins_head;
     plugins_head = plugin;
 
-    printf(LOG_PREFIX "Registered plugin: %s v%s\n", plugin->name, plugin->version);
+    LOGI(LOG_PREFIX "Registered plugin: %s v%s\n", plugin->name, plugin->version);
 }
 
 /**
@@ -51,17 +52,17 @@ int esphome_plugin_init_all(esphome_api_server_t *server, const esphome_device_c
     int count = 0;
     int failed = 0;
 
-    printf(LOG_PREFIX "Initializing plugins...\n");
+    LOGI(LOG_PREFIX "Initializing plugins...\n");
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         count++;
-        printf(LOG_PREFIX "Initializing %s...\n", plugin->name);
+        LOGI(LOG_PREFIX "Initializing %s...\n", plugin->name);
 
         if (plugin->init) {
             /* Allocate persistent context for this plugin */
             esphome_plugin_context_t *ctx = calloc(1, sizeof(esphome_plugin_context_t));
             if (!ctx) {
-                fprintf(stderr, LOG_PREFIX "Failed to allocate context for plugin: %s\n", plugin->name);
+                LOGE(LOG_PREFIX "Failed to allocate context for plugin: %s\n", plugin->name);
                 failed++;
                 continue;
             }
@@ -71,7 +72,7 @@ int esphome_plugin_init_all(esphome_api_server_t *server, const esphome_device_c
             ctx->plugin_data = NULL;
 
             if (plugin->init(ctx) < 0) {
-                fprintf(stderr, LOG_PREFIX "Failed to initialize plugin: %s\n", plugin->name);
+                LOGE(LOG_PREFIX "Failed to initialize plugin: %s\n", plugin->name);
                 free(ctx);
                 failed++;
             } else {
@@ -81,7 +82,7 @@ int esphome_plugin_init_all(esphome_api_server_t *server, const esphome_device_c
         }
     }
 
-    printf(LOG_PREFIX "Initialized %d plugin(s), %d failed\n", count, failed);
+    LOGI(LOG_PREFIX "Initialized %d plugin(s), %d failed\n", count, failed);
     return (failed > 0) ? -1 : 0;
 }
 
@@ -95,12 +96,12 @@ void esphome_plugin_cleanup_all(esphome_api_server_t *server, const esphome_devi
     (void)server;
     (void)config;
 
-    printf(LOG_PREFIX "Cleaning up plugins...\n");
+    LOGI(LOG_PREFIX "Cleaning up plugins...\n");
     fflush(stdout);
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         if (plugin->cleanup && plugin->ctx) {
-            printf(LOG_PREFIX "Cleaning up %s (timeout=%ds)...\n", plugin->name, CLEANUP_TIMEOUT_SEC);
+            LOGI(LOG_PREFIX "Cleaning up %s (timeout=%ds)...\n", plugin->name, CLEANUP_TIMEOUT_SEC);
             fflush(stdout);
 
             /* Run cleanup in a thread so we can enforce a timeout */
@@ -109,7 +110,7 @@ void esphome_plugin_cleanup_all(esphome_api_server_t *server, const esphome_devi
                 (void *(*)(void *))plugin->cleanup, plugin->ctx);
 
             if (ret != 0) {
-                fprintf(stderr, LOG_PREFIX "Failed to create cleanup thread for %s: %s\n",
+                LOGE(LOG_PREFIX "Failed to create cleanup thread for %s: %s\n",
                         plugin->name, strerror(ret));
                 continue;
             }
@@ -121,12 +122,12 @@ void esphome_plugin_cleanup_all(esphome_api_server_t *server, const esphome_devi
 
             ret = pthread_timedjoin_np(cleanup_tid, NULL, &ts);
             if (ret == ETIMEDOUT) {
-                fprintf(stderr, LOG_PREFIX "Timeout cleaning up %s, cancelling...\n", plugin->name);
+                LOGE(LOG_PREFIX "Timeout cleaning up %s, cancelling...\n", plugin->name);
                 fflush(stderr);
                 pthread_cancel(cleanup_tid);
                 pthread_join(cleanup_tid, NULL);
             } else if (ret != 0) {
-                fprintf(stderr, LOG_PREFIX "Error joining cleanup thread for %s: %s\n",
+                LOGE(LOG_PREFIX "Error joining cleanup thread for %s: %s\n",
                         plugin->name, strerror(ret));
             }
 
@@ -134,12 +135,12 @@ void esphome_plugin_cleanup_all(esphome_api_server_t *server, const esphome_devi
             free(plugin->ctx);
             plugin->ctx = NULL;
 
-            printf(LOG_PREFIX "Cleaned up %s\n", plugin->name);
+            LOGI(LOG_PREFIX "Cleaned up %s\n", plugin->name);
             fflush(stdout);
         }
     }
 
-    printf(LOG_PREFIX "Cleanup complete\n");
+    LOGI(LOG_PREFIX "Cleanup complete\n");
     fflush(stdout);
 }
 
@@ -157,9 +158,9 @@ int esphome_plugin_configure_device_info_all(
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         if (plugin->configure_device_info && plugin->ctx) {
-            printf(LOG_PREFIX "Plugin %s configuring device info...\n", plugin->name);
+            LOGI(LOG_PREFIX "Plugin %s configuring device info...\n", plugin->name);
             if (plugin->configure_device_info(plugin->ctx, device_info) < 0) {
-                fprintf(stderr, LOG_PREFIX "Warning: Plugin %s failed to configure device info\n",
+                LOGE(LOG_PREFIX "Warning: Plugin %s failed to configure device info\n",
                         plugin->name);
             }
         }
@@ -182,9 +183,9 @@ int esphome_plugin_list_entities_all(
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         if (plugin->list_entities && plugin->ctx) {
-            printf(LOG_PREFIX "Plugin %s listing entities...\n", plugin->name);
+            LOGI(LOG_PREFIX "Plugin %s listing entities...\n", plugin->name);
             if (plugin->list_entities(plugin->ctx, client_id) < 0) {
-                fprintf(stderr, LOG_PREFIX "Warning: Plugin %s failed to list entities\n",
+                LOGE(LOG_PREFIX "Warning: Plugin %s failed to list entities\n",
                         plugin->name);
             }
         }
@@ -207,9 +208,9 @@ int esphome_plugin_subscribe_states_all(
 
     for (esphome_plugin_t *plugin = plugins_head; plugin != NULL; plugin = plugin->next) {
         if (plugin->subscribe_states && plugin->ctx) {
-            printf(LOG_PREFIX "Plugin %s subscribe states...\n", plugin->name);
+            LOGI(LOG_PREFIX "Plugin %s subscribe states...\n", plugin->name);
             if (plugin->subscribe_states(plugin->ctx, client_id) < 0) {
-                fprintf(stderr, LOG_PREFIX "Warning: Plugin %s failed to subscribe states\n",
+                LOGE(LOG_PREFIX "Warning: Plugin %s failed to subscribe states\n",
                         plugin->name);
             }
         }
@@ -307,15 +308,19 @@ void esphome_plugin_log(
 {
     (void)ctx;
 
-    const char *level_str[] = {"ERROR", "WARNING", "INFO", "DEBUG"};
+    /* Plugin log levels: 0=ERROR, 1=WARNING, 2=INFO, 3=DEBUG */
+    static const esplog_level_t level_map[] = {
+        ESPLOG_ERROR, ESPLOG_WARNING, ESPLOG_INFO, ESPLOG_DEBUG
+    };
     if (level < 0 || level > 3) {
         level = 0;
     }
 
+    char msg[512];
     va_list args;
     va_start(args, format);
-    printf(LOG_PREFIX "[%s] ", level_str[level]);
-    vprintf(format, args);
-    printf("\n");
+    vsnprintf(msg, sizeof(msg), format ? format : "", args);
     va_end(args);
+
+    esphome_log_write(level_map[level], "%s", msg);
 }

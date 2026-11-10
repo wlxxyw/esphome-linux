@@ -6,6 +6,7 @@
 #include "ble_scanner.h"
 #include <blepp/lescan.h>
 #include <blepp/bleclienttransport.h>
+#include "../../src/include/esphome_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,7 +62,7 @@ static void process_advertisement(ble_scanner_t *scanner, const BLEPP::Advertisi
     memset(&advert, 0, sizeof(advert));
 
     if (!parse_mac_address(ad.address.c_str(), advert.address)) {
-        printf(LOG_PREFIX "Failed to parse MAC address: %s\n", ad.address.c_str());
+        LOGI(LOG_PREFIX "Failed to parse MAC address: %s\n", ad.address.c_str());
         return;
     }
 
@@ -106,7 +107,7 @@ static void process_advertisement(ble_scanner_t *scanner, const BLEPP::Advertisi
 static void *event_loop_thread(void *arg) {
     ble_scanner_t *scanner = (ble_scanner_t *)arg;
 
-    printf(LOG_PREFIX "Event loop started\n");
+    LOGI(LOG_PREFIX "Event loop started\n");
 
     try {
         while (!scanner->stop_requested) {
@@ -123,10 +124,10 @@ static void *event_loop_thread(void *arg) {
             }
         }
     } catch (const std::exception &e) {
-        fprintf(stderr, LOG_PREFIX "Scanner error: %s\n", e.what());
+        LOGE(LOG_PREFIX "Scanner error: %s\n", e.what());
     }
 
-    printf(LOG_PREFIX "Event loop stopped\n");
+    LOGI(LOG_PREFIX "Event loop stopped\n");
     return NULL;
 }
 
@@ -137,7 +138,7 @@ static void *event_loop_thread(void *arg) {
 ble_scanner_t *ble_scanner_init(ble_advert_callback_t callback, void *user_data) {
     ble_scanner_t *scanner = (ble_scanner_t *)calloc(1, sizeof(ble_scanner_t));
     if (!scanner) {
-        fprintf(stderr, LOG_PREFIX "Failed to allocate scanner\n");
+        LOGE(LOG_PREFIX "Failed to allocate scanner\n");
         return NULL;
     }
 
@@ -146,47 +147,31 @@ ble_scanner_t *ble_scanner_init(ble_advert_callback_t callback, void *user_data)
     scanner->running = false;
     scanner->stop_requested = false;
 
-    /* Set BLEPP log level from environment variable */
-    const char *log_level_env = getenv("LOG_LEVEL");
-    if (log_level_env != nullptr) {
-        if (strcasecmp(log_level_env, "Debug") == 0) {
-            BLEPP::log_level = BLEPP::Debug;
-            printf(LOG_PREFIX "BLEPP log level set to Debug\n");
-        } else if (strcasecmp(log_level_env, "Info") == 0) {
-            BLEPP::log_level = BLEPP::Info;
-            printf(LOG_PREFIX "BLEPP log level set to Info\n");
-        } else if (strcasecmp(log_level_env, "Warning") == 0) {
-            BLEPP::log_level = BLEPP::Warning;
-            printf(LOG_PREFIX "BLEPP log level set to Warning\n");
-        } else if (strcasecmp(log_level_env, "Error") == 0) {
-            BLEPP::log_level = BLEPP::Error;
-            printf(LOG_PREFIX "BLEPP log level set to Error\n");
-        } else {
-            printf(LOG_PREFIX "Unknown LOG_LEVEL '%s', valid values are Info, Debug, Warning and Error. using default (Info)\n", log_level_env);
-            BLEPP::log_level = BLEPP::Info;
-        }
-    } else {
-        /* Default to Info level if not set */
-        BLEPP::log_level = BLEPP::Info;
+    /* Mirror the global log level to BLEPP (set via LOG_LEVEL env in main) */
+    switch (esphome_log_get_level()) {
+        case ESPLOG_DEBUG:   BLEPP::log_level = BLEPP::Debug;   break;
+        case ESPLOG_WARNING: BLEPP::log_level = BLEPP::Warning; break;
+        case ESPLOG_ERROR:   BLEPP::log_level = BLEPP::Error;   break;
+        default:             BLEPP::log_level = BLEPP::Info;    break;
     }
 
     /* Create BLE client transport */
     try {
         scanner->transport = BLEPP::create_client_transport();
         if (!scanner->transport) {
-            fprintf(stderr, LOG_PREFIX "Failed to create BLE transport (no BlueZ or Nimble support)\n");
+            LOGE(LOG_PREFIX "Failed to create BLE transport (no BlueZ or Nimble support)\n");
             free(scanner);
             return NULL;
         }
 
-        printf(LOG_PREFIX "Using transport: %s\n", scanner->transport->get_transport_name());
+        LOGI(LOG_PREFIX "Using transport: %s\n", scanner->transport->get_transport_name());
 
         /* Create BLEScanner with the transport - no duplicate filtering since we report immediately */
         scanner->scanner = new BLEPP::BLEScanner(
             scanner->transport
         );
     } catch (const std::exception &e) {
-        fprintf(stderr, LOG_PREFIX "Failed to create BLEScanner: %s\n", e.what());
+        LOGE(LOG_PREFIX "Failed to create BLEScanner: %s\n", e.what());
         if (scanner->transport) {
             delete scanner->transport;
         }
@@ -194,7 +179,7 @@ ble_scanner_t *ble_scanner_init(ble_advert_callback_t callback, void *user_data)
         return NULL;
     }
 
-    printf(LOG_PREFIX "Scanner initialized\n");
+    LOGI(LOG_PREFIX "Scanner initialized\n");
     return scanner;
 }
 
@@ -204,7 +189,7 @@ int ble_scanner_start(ble_scanner_t *scanner) {
     }
 
     if (scanner->running) {
-        fprintf(stderr, LOG_PREFIX "Scanner already running\n");
+        LOGE(LOG_PREFIX "Scanner already running\n");
         return -1;
     }
 
@@ -219,20 +204,20 @@ int ble_scanner_start(ble_scanner_t *scanner) {
 		params.filter_duplicates = BLEPP::ScanParams::FilterDuplicates::Off;
         scanner->scanner->start(params);  /* false = active scanning */
     } catch (const std::exception &e) {
-        fprintf(stderr, LOG_PREFIX "Failed to start BLE scanner: %s\n", e.what());
+        LOGE(LOG_PREFIX "Failed to start BLE scanner: %s\n", e.what());
         return -1;
     }
 
     /* Start event loop thread */
     scanner->running = true;
     if (pthread_create(&scanner->event_thread, NULL, event_loop_thread, scanner) != 0) {
-        fprintf(stderr, LOG_PREFIX "Failed to create event thread\n");
+        LOGE(LOG_PREFIX "Failed to create event thread\n");
         scanner->scanner->stop();
         scanner->running = false;
         return -1;
     }
 
-    printf(LOG_PREFIX "Scanner started (immediate reporting mode)\n");
+    LOGI(LOG_PREFIX "Scanner started (immediate reporting mode)\n");
     return 0;
 }
 
@@ -241,7 +226,7 @@ int ble_scanner_stop(ble_scanner_t *scanner) {
         return -1;
     }
 
-    printf(LOG_PREFIX "Stopping scanner...\n");
+    LOGI(LOG_PREFIX "Stopping scanner...\n");
 
     /* Signal thread to stop */
     scanner->stop_requested = true;
@@ -250,7 +235,7 @@ int ble_scanner_stop(ble_scanner_t *scanner) {
     try {
         scanner->scanner->stop();
     } catch (const std::exception &e) {
-        fprintf(stderr, LOG_PREFIX "Error stopping BLE scanner: %s\n", e.what());
+        LOGE(LOG_PREFIX "Error stopping BLE scanner: %s\n", e.what());
     }
 
     /* Wait for thread to finish */
@@ -258,7 +243,7 @@ int ble_scanner_stop(ble_scanner_t *scanner) {
 
     scanner->running = false;
 
-    printf(LOG_PREFIX "Scanner stopped\n");
+    LOGI(LOG_PREFIX "Scanner stopped\n");
     return 0;
 }
 
@@ -284,5 +269,5 @@ void ble_scanner_free(ble_scanner_t *scanner) {
     }
 
     free(scanner);
-    printf(LOG_PREFIX "Scanner freed\n");
+    LOGI(LOG_PREFIX "Scanner freed\n");
 }

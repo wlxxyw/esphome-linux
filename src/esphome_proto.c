@@ -4,6 +4,7 @@
  */
 
 #include "include/esphome_proto.h"
+#include "esphome_log.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -362,7 +363,7 @@ size_t esphome_encode_ble_advertisements(uint8_t *buf, size_t size,
     for (size_t i = 0; i < msg->count && i < ESPHOME_MAX_ADV_BATCH; i++) {
         const esphome_ble_advertisement_t *adv = &msg->advertisements[i];
 
-        printf("[esphome-proto] Encoding advertisement %zu: address=%02X:%02X:%02X:%02X:%02X:%02X, rssi=%d, type=%u, data_len=%zu\n",
+        LOGD("[esphome-proto] Encoding advertisement %zu: address=%02X:%02X:%02X:%02X:%02X:%02X, rssi=%d, type=%u, data_len=%zu\n",
                i,
                (uint8_t)(adv->address >> 40), (uint8_t)(adv->address >> 32),
                (uint8_t)(adv->address >> 24), (uint8_t)(adv->address >> 16),
@@ -376,44 +377,44 @@ size_t esphome_encode_ble_advertisements(uint8_t *buf, size_t size,
 
         /* Field 1: address (uint64 varint) */
         if (!pb_encode_uint64(&adv_pb, 1, adv->address)) {
-            printf("[esphome-proto] ERROR: Failed to encode address field\n");
+            LOGE("[esphome-proto] ERROR: Failed to encode address field\n");
             return 0;
         }
-        printf("[esphome-proto] After encoding address: pos=%zu\n", adv_pb.pos);
+        LOGD("[esphome-proto] After encoding address: pos=%zu\n", adv_pb.pos);
 
         /* Field 2: rssi (sint32) */
         if (!pb_encode_sint32(&adv_pb, 2, adv->rssi)) {
-            printf("[esphome-proto] ERROR: Failed to encode RSSI field\n");
+            LOGE("[esphome-proto] ERROR: Failed to encode RSSI field\n");
             return 0;
         }
-        printf("[esphome-proto] After encoding RSSI: pos=%zu\n", adv_pb.pos);
+        LOGD("[esphome-proto] After encoding RSSI: pos=%zu\n", adv_pb.pos);
 
         /* Field 3: address_type (uint32) */
         if (!pb_encode_uint32(&adv_pb, 3, adv->address_type)) {
-            printf("[esphome-proto] ERROR: Failed to encode address_type field\n");
+            LOGE("[esphome-proto] ERROR: Failed to encode address_type field\n");
             return 0;
         }
-        printf("[esphome-proto] After encoding address_type: pos=%zu\n", adv_pb.pos);
+        LOGD("[esphome-proto] After encoding address_type: pos=%zu\n", adv_pb.pos);
 
         /* Field 4: data (bytes) */
         if (!pb_encode_bytes(&adv_pb, 4, adv->data, adv->data_len)) {
-            printf("[esphome-proto] ERROR: Failed to encode data field\n");
+            LOGE("[esphome-proto] ERROR: Failed to encode data field\n");
             return 0;
         }
-        printf("[esphome-proto] After encoding data: pos=%zu\n", adv_pb.pos);
+        LOGD("[esphome-proto] After encoding data: pos=%zu\n", adv_pb.pos);
 
         if (adv_pb.error) {
-            printf("[esphome-proto] ERROR: Buffer error flag set\n");
+            LOGE("[esphome-proto] ERROR: Buffer error flag set\n");
             return 0;
         }
 
         /* Hex dump of encoded advertisement */
-        printf("[esphome-proto] Encoded advertisement (%zu bytes): ", adv_pb.pos);
+        LOGD("[esphome-proto] Encoded advertisement (%zu bytes): ", adv_pb.pos);
         for (size_t j = 0; j < adv_pb.pos && j < 50; j++) {
-            printf("%02x ", adv_buf[j]);
+            LOGD("%02x ", adv_buf[j]);
         }
-        if (adv_pb.pos > 50) printf("...");
-        printf("\n");
+        if (adv_pb.pos > 50) LOGD("...");
+        LOGD("\n");
 
         /* Encode the advertisement as a repeated message (field 1) */
         pb_encode_varint(&pb, PB_FIELD_TAG(1, PB_WIRE_TYPE_LENGTH));

@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 #include "include/esphome_api.h"
 #include "include/esphome_plugin_internal.h"
+#include "esphome_log.h"
 
 #define PROGRAM_NAME "esphome-linux"
 #define VERSION "1.0.0"
@@ -86,9 +87,11 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
-    printf("%s v%s - ESPHome Native API for Linux\n",
-           PROGRAM_NAME, VERSION);
-    printf("Copyright (c) 2025 Thingino Project\n\n");
+    esphome_log_init();
+
+    LOGI("%s v%s - ESPHome Native API for Linux\n",
+         PROGRAM_NAME, VERSION);
+    LOGI("Copyright (c) 2025 Thingino Project\n\n");
 
     /* Block SIGINT and SIGTERM before creating any threads.
      * Child threads will inherit the blocked signal mask.
@@ -120,8 +123,8 @@ int main(int argc, char *argv[]) {
     get_hostname(hostname, sizeof(hostname));
     get_mac_address(mac_address, sizeof(mac_address));
 
-    printf("Device: %s\n", hostname);
-    printf("MAC: %s\n\n", mac_address);
+    LOGI("Device: %s\n", hostname);
+    LOGI("MAC: %s\n\n", mac_address);
 
     /* Configure device */
     esphome_device_config_t config;
@@ -138,32 +141,32 @@ int main(int argc, char *argv[]) {
     /* Initialize API server */
     api_server = esphome_api_init(&config);
     if (!api_server) {
-        fprintf(stderr, "Failed to initialize API server\n");
+        LOGE("Failed to initialize API server\n");
         return EXIT_FAILURE;
     }
 
     /* Start API server */
     if (esphome_api_start(api_server) < 0) {
-        fprintf(stderr, "Failed to start API server\n");
+        LOGE("Failed to start API server\n");
         esphome_api_free(api_server);
         return EXIT_FAILURE;
     }
 
-    printf("ESPHome API server started successfully\n");
-    printf("Listening on port 6053\n");
+    LOGI("ESPHome API server started successfully\n");
+    LOGI("Listening on port 6053\n");
 
     /* Initialize all registered plugins */
     if (esphome_plugin_init_all(api_server, &config) < 0) {
-        fprintf(stderr, "Warning: Some plugins failed to initialize\n");
+        LOGE("Warning: Some plugins failed to initialize\n");
     }
 
-    printf("Plugins loaded and ready\n");
+    LOGI("Plugins loaded and ready\n");
 
     /* Now that all threads are created, unblock signals only in the main thread.
      * This ensures signals are delivered to the main thread, not worker threads. */
     pthread_sigmask(SIG_UNBLOCK, &block_mask, NULL);
 
-    printf("Press Ctrl+C to stop\n\n");
+    LOGI("Press Ctrl+C to stop\n\n");
 
     /* Main loop - wait for signal using sigsuspend for reliable signal handling */
     sigset_t wait_mask;
@@ -174,7 +177,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Cleanup */
-    printf("\nShutting down...\n");
+    LOGI("\nShutting down...\n");
 
     /* Cleanup all plugins */
     esphome_plugin_cleanup_all(api_server, &config);
@@ -182,6 +185,6 @@ int main(int argc, char *argv[]) {
     esphome_api_stop(api_server);
     esphome_api_free(api_server);
 
-    printf("Goodbye!\n");
+    LOGI("Goodbye!\n");
     return EXIT_SUCCESS;
 }

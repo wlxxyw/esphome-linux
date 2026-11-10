@@ -17,6 +17,7 @@
 #include "../../src/include/esphome_proto.h"
 #include "ble_scanner.h"
 #include "switch_proto.h"
+#include "../../src/include/esphome_log.h"
 
 /* Entity keys for this plugin */
 static const uint32_t ble_scanning_switch_key = 100;  /* Unique key for BLE scanning switch */
@@ -78,7 +79,7 @@ static void flush_ble_batch(bluetooth_proxy_state_t *state, esphome_plugin_conte
         esphome_plugin_send_message(ctx, ESPHOME_MSG_BLUETOOTH_LE_RAW_ADVERTISEMENTS_RESPONSE,
                                     encode_buf, len);
 
-        printf("[bluetooth_proxy] Sent BLE batch: %zu advertisements\n", state->ble_batch.count);
+        LOGD("[bluetooth_proxy] Sent BLE batch: %zu advertisements\n", state->ble_batch.count);
     }
 
     /* Reset batch */
@@ -182,10 +183,10 @@ static void report_ble_scanning_switch_state(esphome_plugin_context_t *ctx, bool
     if (len > 0) {
         esphome_plugin_send_message(ctx, ESPHOME_MSG_SWITCH_STATE_RESPONSE,
                                     encode_buf, len);
-        printf("[bluetooth_proxy] Reported BLE scanning switch state: %s\n",
+        LOGI("[bluetooth_proxy] Reported BLE scanning switch state: %s\n",
                state ? "ON" : "OFF");
     } else {
-        fprintf(stderr, "[bluetooth_proxy] Failed to encode switch state response\n");
+        LOGE("[bluetooth_proxy] Failed to encode switch state response\n");
     }
 }
 
@@ -202,12 +203,12 @@ static int start_ble_scanning(bluetooth_proxy_state_t *state) {
     }
 
     if (ble_scanner_start(state->scanner) < 0) {
-        fprintf(stderr, "[bluetooth_proxy] Failed to start BLE scanning\n");
+        LOGE("[bluetooth_proxy] Failed to start BLE scanning\n");
         return -1;
     }
 
     state->subscribed = true;
-    printf("[bluetooth_proxy] BLE scanning started\n");
+    LOGI("[bluetooth_proxy] BLE scanning started\n");
     return 0;
 }
 
@@ -224,12 +225,12 @@ static int stop_ble_scanning(bluetooth_proxy_state_t *state) {
     }
 
     if (ble_scanner_stop(state->scanner) < 0) {
-        fprintf(stderr, "[bluetooth_proxy] Failed to stop BLE scanning\n");
+        LOGE("[bluetooth_proxy] Failed to stop BLE scanning\n");
         return -1;
     }
 
     state->subscribed = false;
-    printf("[bluetooth_proxy] BLE scanning stopped\n");
+    LOGI("[bluetooth_proxy] BLE scanning stopped\n");
     return 0;
 }
 
@@ -247,7 +248,7 @@ static int bluetooth_proxy_configure_device_info(esphome_plugin_context_t *ctx,
     strncpy(device_info->bluetooth_mac_address, ctx->config->mac_address,
             sizeof(device_info->bluetooth_mac_address) - 1);
 
-    printf("[bluetooth_proxy] Configured device info: BLE proxy flags = 0x%08x\n",
+    LOGI("[bluetooth_proxy] Configured device info: BLE proxy flags = 0x%08x\n",
            device_info->bluetooth_proxy_feature_flags);
 
     return 0;
@@ -257,12 +258,12 @@ static int bluetooth_proxy_configure_device_info(esphome_plugin_context_t *ctx,
  * Initialize the Bluetooth Proxy plugin
  */
 static int bluetooth_proxy_init(esphome_plugin_context_t *ctx) {
-    printf("[bluetooth_proxy] Initializing plugin\n");
+    LOGI("[bluetooth_proxy] Initializing plugin\n");
 
     /* Allocate plugin state */
     bluetooth_proxy_state_t *state = calloc(1, sizeof(bluetooth_proxy_state_t));
     if (!state) {
-        fprintf(stderr, "[bluetooth_proxy] Failed to allocate state\n");
+        LOGE("[bluetooth_proxy] Failed to allocate state\n");
         return -1;
     }
 
@@ -278,7 +279,7 @@ static int bluetooth_proxy_init(esphome_plugin_context_t *ctx) {
     /* Start flush thread */
     state->flush_thread_running = true;
     if (pthread_create(&state->flush_thread, NULL, flush_thread_func, state) != 0) {
-        fprintf(stderr, "[bluetooth_proxy] Failed to create flush thread\n");
+        LOGE("[bluetooth_proxy] Failed to create flush thread\n");
         pthread_mutex_destroy(&state->batch_mutex);
         free(state);
         return -1;
@@ -287,16 +288,16 @@ static int bluetooth_proxy_init(esphome_plugin_context_t *ctx) {
     /* Initialize BLE scanner */
     state->scanner = ble_scanner_init(on_ble_advertisement, ctx);
     if (!state->scanner) {
-        fprintf(stderr, "[bluetooth_proxy] Warning: Failed to initialize BLE scanner\n");
-        fprintf(stderr, "[bluetooth_proxy] Plugin will run without BLE scanning\n");
+        LOGE("[bluetooth_proxy] Warning: Failed to initialize BLE scanner\n");
+        LOGE("[bluetooth_proxy] Plugin will run without BLE scanning\n");
         /* Don't fail - plugin can still handle subscription messages */
     }
 
     /* Store in context */
     ctx->plugin_data = state;
 
-    printf("[bluetooth_proxy] Plugin initialized successfully\n");
-    printf("[bluetooth_proxy] Device: %s\n", ctx->config->device_name);
+    LOGI("[bluetooth_proxy] Plugin initialized successfully\n");
+    LOGI("[bluetooth_proxy] Device: %s\n", ctx->config->device_name);
 
     return 0;
 }
@@ -305,7 +306,7 @@ static int bluetooth_proxy_init(esphome_plugin_context_t *ctx) {
  * Cleanup the Bluetooth Proxy plugin
  */
 static void bluetooth_proxy_cleanup(esphome_plugin_context_t *ctx) {
-    printf("[bluetooth_proxy] Cleaning up plugin\n");
+    LOGI("[bluetooth_proxy] Cleaning up plugin\n");
 
     if (ctx->plugin_data) {
         bluetooth_proxy_state_t *state = (bluetooth_proxy_state_t *)ctx->plugin_data;
@@ -335,21 +336,21 @@ static void bluetooth_proxy_cleanup(esphome_plugin_context_t *ctx) {
 static int handle_subscribe_ble_advertisements(esphome_plugin_context_t *ctx) {
     bluetooth_proxy_state_t *state = (bluetooth_proxy_state_t *)ctx->plugin_data;
 
-    printf("[bluetooth_proxy] Received SUBSCRIBE_BLUETOOTH_LE_ADVERTISEMENTS_REQUEST\n");
+    LOGI("[bluetooth_proxy] Received SUBSCRIBE_BLUETOOTH_LE_ADVERTISEMENTS_REQUEST\n");
 
     if (!state) {
-        fprintf(stderr, "[bluetooth_proxy] Cannot subscribe: plugin state not initialized\n");
+        LOGE("[bluetooth_proxy] Cannot subscribe: plugin state not initialized\n");
         return -1;
     }
 
     if (!state->scanner) {
-        fprintf(stderr, "[bluetooth_proxy] Cannot subscribe: BLE scanner not initialized\n");
+        LOGE("[bluetooth_proxy] Cannot subscribe: BLE scanner not initialized\n");
         return -1;
     }
 
     /* Only start scanning if the switch is enabled */
     if (!state->ble_scanning_enabled) {
-        printf("[bluetooth_proxy] BLE scanning is disabled by switch, not starting\n");
+        LOGI("[bluetooth_proxy] BLE scanning is disabled by switch, not starting\n");
         return 0;
     }
 
@@ -362,7 +363,7 @@ static int handle_subscribe_ble_advertisements(esphome_plugin_context_t *ctx) {
 static int handle_unsubscribe_ble_advertisements(esphome_plugin_context_t *ctx) {
     bluetooth_proxy_state_t *state = (bluetooth_proxy_state_t *)ctx->plugin_data;
 
-    printf("[bluetooth_proxy] Received UNSUBSCRIBE_BLUETOOTH_LE_ADVERTISEMENTS_REQUEST\n");
+    LOGI("[bluetooth_proxy] Received UNSUBSCRIBE_BLUETOOTH_LE_ADVERTISEMENTS_REQUEST\n");
 
     if (!state || !state->scanner) {
         return 0; /* Nothing to do */
@@ -379,14 +380,14 @@ static int handle_ble_scanning_switch_command(esphome_plugin_context_t *ctx,
     bluetooth_proxy_state_t *state = (bluetooth_proxy_state_t *)ctx->plugin_data;
 
     if (!state) {
-        fprintf(stderr, "[bluetooth_proxy] Cannot handle switch command: state not initialized\n");
+        LOGE("[bluetooth_proxy] Cannot handle switch command: state not initialized\n");
         return -1;
     }
 
     /* Decode the switch command */
     switch_command_request_t cmd;
     if (!switch_decode_command_request(data, len, &cmd)) {
-        fprintf(stderr, "[bluetooth_proxy] Failed to decode switch command\n");
+        LOGE("[bluetooth_proxy] Failed to decode switch command\n");
         return -1;
     }
 
@@ -395,7 +396,7 @@ static int handle_ble_scanning_switch_command(esphome_plugin_context_t *ctx,
         return -1;  /* Not our switch */
     }
 
-    printf("[bluetooth_proxy] BLE scanning switch command: %s\n", cmd.state ? "ON" : "OFF");
+    LOGI("[bluetooth_proxy] BLE scanning switch command: %s\n", cmd.state ? "ON" : "OFF");
 
     /* Update the enabled state */
     state->ble_scanning_enabled = cmd.state;
@@ -483,9 +484,9 @@ static int bluetooth_proxy_list_entities(esphome_plugin_context_t *ctx, int clie
         esphome_plugin_send_message_to_client(ctx, client_id,
                                                ESPHOME_MSG_LIST_ENTITIES_SWITCH_RESPONSE,
                                                encode_buf, len);
-        printf("[bluetooth_proxy] Registered BLE Scanning switch entity\n");
+        LOGI("[bluetooth_proxy] Registered BLE Scanning switch entity\n");
     } else {
-        fprintf(stderr, "[bluetooth_proxy] Failed to encode switch entity\n");
+        LOGE("[bluetooth_proxy] Failed to encode switch entity\n");
         return -1;
     }
 

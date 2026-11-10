@@ -585,6 +585,13 @@ void esphome_plugin_log(esphome_plugin_context_t *ctx,
 
 Log a message. Levels: 0=error, 1=warning, 2=info, 3=debug.
 
+The global log level is controlled by the `LOG_LEVEL` environment variable
+(`Debug`, `Info`, `Warning`, `Error`; case-insensitive, default `Info`).
+Messages below that level are suppressed, so plugins don't need their own
+filtering. For direct logging from plugin code, include
+`../../src/include/esphome_log.h` and use the `LOGD`/`LOGI`/`LOGW`/`LOGE`
+macros (which support printf-style formatting and go through the same filter).
+
 ### Registration Macro
 
 #### `ESPHOME_PLUGIN_REGISTER`

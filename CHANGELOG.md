@@ -342,4 +342,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - N/A
 
+## [Unreleased]
+
+### Added
+- Global leveled logging (`Debug`/`Info`/`Warning`/`Error`) controlled by the
+  `LOG_LEVEL` environment variable (default `Info`); the level is also
+  mirrored to the BLE++ library in the bluetooth_proxy plugin
+
 [0.0.14]: https://github.com/yinzara/esphome-linux/releases/tag/v0.0.14
