@@ -40,6 +40,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
+          target: dist
           outputs: type=local,dest=./output-amd64
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,mode=max,scope=amd64
@@ -61,6 +62,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
+          target: dist
           outputs: type=local,dest=./output-arm64
           cache-from: type=gha,scope=arm64
           cache-to: type=gha,mode=max,scope=arm64
@@ -78,10 +80,10 @@ jobs:
 
       - name: Verify binaries
         run: |
-          ls -lh ./output-amd64/usr/local/bin
-          ls -lh ./output-arm64/usr/local/bin
-          file ./output-amd64/usr/local/bin/esphome-linux || true
-          file ./output-arm64/usr/local/bin/esphome-linux || true
+          ls -lh ./output-amd64/esphome-linux
+          ls -lh ./output-arm64/esphome-linux
+          file ./output-amd64/esphome-linux || true
+          file ./output-arm64/esphome-linux || true
 
       - name: Prepare dependency archives
         run: |
@@ -103,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: esphome-linux-x86_64
-          path: ./output-amd64/usr/local/bin/esphome-linux
+          path: ./output-amd64/esphome-linux
           if-no-files-found: error
 
       - name: Upload x86_64 dependencies
@@ -117,7 +119,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: esphome-linux-arm64
-          path: ./output-arm64/usr/local/bin/esphome-linux
+          path: ./output-arm64/esphome-linux
           if-no-files-found: error
 
       - name: Upload ARM64 dependencies
