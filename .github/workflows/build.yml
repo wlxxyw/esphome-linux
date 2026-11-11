@@ -378,11 +378,23 @@ jobs:
             tar -xzf deps-<arch>.tar.gz -C ~/esphome-deps
             export LD_LIBRARY_PATH=~/esphome-deps/lib:$LD_LIBRARY_PATH
             ```
-            3. Make the binary executable and run:
+            3. Grant BLE capabilities (required for the Bluetooth Proxy plugin when
+            running as a non-root user; re-apply after every binary update):
+            ```bash
+            sudo setcap 'cap_net_raw,cap_net_admin+eip' esphome-linux-<arch>
+            ```
+
+            4. Make the binary executable and run:
             ```bash
             chmod +x esphome-linux-<arch>
             ./esphome-linux-<arch>
             ```
+
+            > Without step 3, non-root runs will fail BLE scanning with
+            > `Operation not permitted` errors (raw HCI sockets require
+            > `CAP_NET_RAW` + `CAP_NET_ADMIN`). Under systemd, you may instead use
+            > `AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN` in a system-level
+            > unit (user-level units cannot grant capabilities).
 
             **Dependencies include**: NimBLE (Bluetooth LE stack), BlueZ (Bluetooth library), and libblepp (BLE++ wrapper)
 

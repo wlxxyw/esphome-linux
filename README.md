@@ -161,7 +161,7 @@ meson compile -C build
 
 ### Prerequisites
 
-1**mDNS for automatic discovery (recommended):**
+1. **mDNS for automatic discovery (recommended):**
    ```bash
    # mdnsd (lightweight, recommended for embedded systems)
    # Configuration file:
@@ -172,6 +172,19 @@ meson compile -C build
    # Or use Avahi
    avahi-daemon
    ```
+
+2. **Bluetooth permissions (Bluetooth Proxy plugin):**
+   BLE scanning opens a raw HCI socket, which requires `CAP_NET_RAW` +
+   `CAP_NET_ADMIN`. If you run the binary as a non-root user, grant the
+   capabilities once with `setcap`:
+   ```bash
+   sudo setcap 'cap_net_raw,cap_net_admin+eip' ./build/esphome-linux
+   ```
+   > Note: file capabilities are NOT preserved when the binary is replaced —
+   > re-run `setcap` after every binary update/download.
+   >
+   > Under systemd, prefer `AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN`
+   > in a **system-level** unit (user-level units cannot grant capabilities).
 
 ### Start the Service
 
@@ -289,6 +302,17 @@ esphome-linux/
    ```
 
 3. Check service logs for errors
+
+4. If the log shows `Failed to set scan parameters: Operation not permitted`
+   (or `Failed to bring up HCI device ... Operation not permitted`), the process
+   lacks BLE capabilities. Grant them as non-root with:
+   ```bash
+   sudo setcap 'cap_net_raw,cap_net_admin+eip' <path-to-esphome-linux>
+   ```
+   For a systemd **system** unit use `AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN`
+   instead (user-level units cannot grant capabilities). Note that `hciconfig`
+   or `bluetoothctl` working as your user does NOT mean the binary has these
+   capabilities.
 
 ### Home Assistant not discovering proxy
 
